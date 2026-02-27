@@ -10,7 +10,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/YOUR-USERNAME/signup-app.git'
+                git 'https://github.com/Ganesh-devops1/sign-in-rds.git'
             }
         }
 
@@ -20,19 +20,25 @@ pipeline {
             }
         }
 
-        stage('Tag Image') {
-            steps {
-                sh 'docker tag $IMAGE_NAME:latest $ECR_REPO:latest'
-            }
-        }
-
         stage('Push to ECR') {
             steps {
-                sh '''
-                aws ecr get-login-password --region ap-south-1 | \
-                docker login --username AWS --password-stdin YOUR-ACCOUNT-ID.dkr.ecr.ap-south-1.amazonaws.com
-                docker push $ECR_REPO:latest
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-creds',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+
+                    sh '''
+                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+
+                    aws ecr get-login-password --region ap-south-1 | \
+                    docker login --username AWS --password-stdin YOUR-ACCOUNT-ID.dkr.ecr.ap-south-1.amazonaws.com
+
+                    docker tag $IMAGE_NAME:latest $ECR_REPO:latest
+                    docker push $ECR_REPO:latest
+                    '''
+                }
             }
         }
     }
