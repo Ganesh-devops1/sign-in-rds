@@ -3,7 +3,11 @@ pipeline {
 
     environment {
         AWS_REGION = "ap-south-1"
+<<<<<<< HEAD
         ACCOUNT_ID = "137452617596"
+=======
+        ACCOUNT_ID = "YOUR-AWS-ACCOUNT-ID"
+>>>>>>> eb64fef (five commit)
         IMAGE_NAME = "sign-in-rds"
         ECR_REPO = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_NAME}"
     }
@@ -60,4 +64,8 @@ pipeline {
             echo "Pipeline Failed ❌ Check Console Output"
         }
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> eb64fef (five commit)
