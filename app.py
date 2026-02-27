@@ -1,7 +1,48 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template_string, redirect
 import mysql.connector
+import logging
+import boto3
+import os
+import time
 
 app = Flask(__name__)
+
+# ==============================
+# CloudWatch Logging Setup
+# ==============================
+
+LOG_GROUP = "sign-in-rds-logs"
+LOG_STREAM = "app-stream"
+
+logs_client = boto3.client("logs", region_name="ap-south-1")
+
+try:
+    logs_client.create_log_group(logGroupName=LOG_GROUP)
+except logs_client.exceptions.ResourceAlreadyExistsException:
+    pass
+
+try:
+    logs_client.create_log_stream(logGroupName=LOG_GROUP, logStreamName=LOG_STREAM)
+except logs_client.exceptions.ResourceAlreadyExistsException:
+    pass
+
+
+def send_log(message):
+    logs_client.put_log_events(
+        logGroupName=LOG_GROUP,
+        logStreamName=LOG_STREAM,
+        logEvents=[
+            {
+                "timestamp": int(time.time() * 1000),
+                "message": message
+            }
+        ]
+    )
+
+
+# ==============================
+# RDS Connection
+# ==============================
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -11,42 +52,80 @@ def get_db_connection():
         database="userdb"
     )
 
-@app.route('/signup', methods=['POST'])
-def signup():
-    data = request.json
-    username = data['username']
-    password = data['password']
+# ==============================
+# HTML Templates
+# ==============================
 
-    db = get_db_connection()
-    cursor = db.cursor()
-    cursor.execute("INSERT INTO users (username,password) VALUES (%s,%s)", (username,password))
-    db.commit()
-    cursor.close()
-    db.close()
+signup_page = """
+<h2>Signup</h2>
+<form method="POST">
+Username: <input type="text" name="username"><br>
+Password: <input type="password" name="password"><br>
+<input type="submit" value="Signup">
+</form>
+<a href="/login">Go to Login</a>
+"""
 
-    return jsonify({"message": "User registered successfully"})
+login_page = """
+<h2>Login</h2>
+<form method="POST">
+Username: <input type="text" name="username"><br>
+Password: <input type="password" name="password"><br>
+<input type="submit" value="Login">
+</form>
+<a href="/signup">Go to Signup</a>
+"""
 
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    username = data['username']
-    password = data['password']
+# ==============================
+# Routes
+# ==============================
 
-    db = get_db_connection()
-    cursor = db.cursor()
-    cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username,password))
-    user = cursor.fetchone()
-    cursor.close()
-    db.close()
-
-    if user:
-        return jsonify({"message": "Login successful"})
-    else:
-        return jsonify({"message": "Invalid credentials"})
-
-@app.route('/')
+@app.route("/")
 def home():
-    return "Signup/Login App Running"
+    return redirect("/signup")
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("INSERT INTO users (username,password) VALUES (%s,%s)", (username, password))
+        db.commit()
+        cursor.close()
+        db.close()
+
+        send_log(f"New user signed up: {username}")
+        return "Signup Successful! <a href='/login'>Login</a>"
+
+    return render_template_string(signup_page)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
+        user = cursor.fetchone()
+        cursor.close()
+        db.close()
+
+        if user:
+            send_log(f"User logged in: {username}")
+            return "Login Successful!"
+        else:
+            send_log(f"Failed login attempt: {username}")
+            return "Invalid Credentials"
+
+    return render_template_string(login_page)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
