@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         AWS_REGION = "ap-south-1"
-        ACCOUNT_ID = "YOUR-AWS-ACCOUNT-ID"
+        ACCOUNT_ID = "137452617596"
         IMAGE_NAME = "sign-in-rds"
         ECR_REPO = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_NAME}"
     }
